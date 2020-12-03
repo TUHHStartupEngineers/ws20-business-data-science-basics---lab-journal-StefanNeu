@@ -16,39 +16,344 @@ output:
 knitr::opts_chunk$set(message=FALSE,warning=FALSE, cache=TRUE)
 ```
 
-**IMPORTANT:** You can delete everything in here and start fresh. You might want to start by not deleting anything above this line until you know what that stuff is doing.
+# Chapter 2: Introduction to the tidyverse
 
-This is an `.Rmd` file. It is plain text with special features. Any time you write just like this, it will be compiled to normal text in the website. If you put a \# in front of your text, it will create a top level-header.
+## Bike Sales by Location
 
-# My first post
-
-Last compiled: `r Sys.Date()`
-
-Notice that whatever you define as a top level header, automatically gets put into the table of contents bar on the left. 
-
-## Second level header
-
-You can add more headers by adding more hashtags. These won't be put into the table of contents
-
-### third level header
-
-Here's an even lower level header
-
-# My second post (note the order)
+In the following you can find code, which analyzes the cummulated bike sales from 2015 to 2020 by state.
 
 Last compiled: `r Sys.Date()`
 
-I'm writing this tutorial going from the top down. And, this is how it will be printed. So, notice the second post is second in the list. If you want your most recent post to be at the top, then make a new post starting at the top. If you want the oldest first, do, then keep adding to the bottom
+```{r, fig.width=10, fig.height=7}
+# Load libraries ----
 
-# Adding R stuff
+library(tidyverse)
+library(readxl)
 
-So far this is just a blog where you can write in plain text and serve your writing to a webpage. One of the main purposes of this lab journal is to record your progress learning R. The reason I am asking you to use this process is because you can both make a website, and a lab journal, and learn R all in R-studio. This makes everything really convenient and in the same place. 
+# Importing Files ----
 
-So, let's say you are learning how to make a histogram in R. For example, maybe you want to sample 100 numbers from a normal distribution with mean = 0, and standard deviation = 1, and then you want to plot a histogram. You can do this right here by using an r code block, like this:
+bikes_tbl <- read_excel(path = "data-science/00_data/01_bike_sales/01_raw_data/bikes.xlsx")
+orderlines_tbl <- read_excel("data-science/00_data/01_bike_sales/01_raw_data/orderlines.xlsx")
+bikeshops_tbl  <- read_excel("data-science/00_data/01_bike_sales/01_raw_data/bikeshops.xlsx")
 
-```{r}
-samples <- rnorm(100, mean=0, sd=1)
-hist(samples)
+# Joining Data ----
+
+bike_orderlines_joined_tbl <- orderlines_tbl %>%
+  left_join(bikes_tbl, by = c("product.id" = "bike.id")) %>%
+  left_join(bikeshops_tbl, by = c("customer.id" = "bikeshop.id"))
+ 
+# Wrangling Data ----
+
+bike_orderlines_wrangled_tbl <- bike_orderlines_joined_tbl %>%
+
+  # Separate state and city
+  separate(col    = location,
+           into   = c("city", "state"),
+           sep    = ", ") %>%
+  
+  # Only select the important columns
+  select(quantity, price, order.date, city, state) 
+
+
+
+# Sales by Location ----
+
+library(lubridate)
+
+sales_by_loc_tbl <- bike_orderlines_wrangled_tbl %>%
+
+  # Add total price and year column 
+  mutate(total_price = quantity * price) %>%
+  mutate(year = year(order.date)) %>%
+
+  # Group table (internally) by state for consequent summary
+  group_by(state) %>%
+  
+  # Remove some columns
+  select(-quantity, -price, -order.date, -city) %>%
+
+  # Add every sale up for the respective states
+  # This only works because we used the group_by command!
+  summarize(sales = sum(total_price)) %>%
+
+  # Add a column that turns the numbers into a currency format
+  mutate(sales_text = scales::dollar(sales, big.mark = ".",
+                                     decimal.mark = ",",
+                                     prefix = "",
+                                     suffix = " €"))
+
+# Visualization
+
+sales_by_loc_tbl %>%
+
+  # Setup canvas with the columns state (x-axis) and sales (y-axis)
+  ggplot(aes(x = state, y = sales)) +
+
+  # Fill the bars with color
+  geom_col(fill = "#2DC6D6") +
+  
+  #Put labels ON TOP OF the bars
+  geom_label(aes(label = sales_text)) +
+  
+  # Rotate text to fit long names
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+
+  # Modify y axis labels 
+  scale_y_continuous(labels = scales::dollar_format(big.mark = ".",
+                                                    decimal.mark = ",",
+                                                    prefix = "",
+                                                    suffix = " €")) +
+  
+  # and last but not least add the general titles and labels for the plot
+  labs(
+    title    = "Revenue by state",
+    x = "State", # Override defaults for x and y
+    y = "Revenue"
+  )
+
 ```
 
-When you knit this R Markdown document, you will see that the histogram is printed to the page, along with the R code. This document can be set up to hide the R code in the webpage, just delete the comment (hashtag) from the cold folding option in the yaml header up top. For purposes of letting yourself see the code, and me see the code, best to keep it the way that it is. You'll learn that all of these things and more can be customized in each R code block.
+## Bike Sales by Location and Year
+
+The following code analyzes bike sales by state and year, so we get 12 individual plots for 12 states and each plot contains data over the last five years.
+
+Last compiled: `r Sys.Date()`
+
+```{r, fig.width=10, fig.height=7}
+# Load libraries ----
+
+library(tidyverse)
+library(readxl)
+
+# Importing Files ----
+
+bikes_tbl <- read_excel(path = "data-science/00_data/01_bike_sales/01_raw_data/bikes.xlsx")
+orderlines_tbl <- read_excel("data-science/00_data/01_bike_sales/01_raw_data/orderlines.xlsx")
+bikeshops_tbl  <- read_excel("data-science/00_data/01_bike_sales/01_raw_data/bikeshops.xlsx")
+
+# Joining Data ----
+
+bike_orderlines_joined_tbl <- orderlines_tbl %>%
+  left_join(bikes_tbl, by = c("product.id" = "bike.id")) %>%
+  left_join(bikeshops_tbl, by = c("customer.id" = "bikeshop.id"))
+ 
+# Wrangling Data ----
+
+bike_orderlines_wrangled_tbl <- bike_orderlines_joined_tbl %>%
+
+  # Separate location into city and state
+  separate(col    = location,
+           into   = c("city", "state"),
+           sep    = ", ") %>%
+
+   select(quantity, price, order.date, city, state) 
+
+# Sales by Location And Year----
+
+library(lubridate)
+
+sales_by_year_and_loc_tbl <- bike_orderlines_wrangled_tbl %>%
+
+  # Add year and total price column
+  mutate(total_price = quantity * price) %>%
+  mutate(year = year(order.date)) %>%
+
+  # Group by state AND year to make 12 individual plots for every state
+  group_by(state, year) %>%
+
+  # Remove some columns
+  select(-quantity, -price, -order.date, -city) %>%
+
+  # Since we grouped by state and year, we get the sales for every year and state
+  summarize(sales = sum(total_price)) %>%
+
+  mutate(sales_text = scales::dollar(sales, big.mark = ".",
+                                     decimal.mark = ",",
+                                     prefix = "",
+                                     suffix = " €"))
+
+# Visualization
+
+sales_by_year_and_loc_tbl %>%
+
+  # Setup canvas with the columns year (x-axis) and sales (y-axis)
+  ggplot(aes(x = year, y = sales, fill = state)) +
+
+  # Don't use manual colors, because facet_wrap will take care of it
+  geom_col() +
+  
+  # Plots 12 individual figures for every state
+  facet_wrap(~ state) + 
+
+  # Note that the individual plots already have the state names as title, so legend is unneccessary
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none") +
+
+  scale_y_continuous(labels = scales::dollar_format(big.mark = ".",
+                                                    decimal.mark = ",",
+                                                    prefix = "",
+                                                    suffix = " €")) +
+  labs(
+    title    = "Revenue by year for the respective states",
+    x = "Year", # Override defaults for x and y
+    y = "Revenue"
+  )
+```
+
+
+# Chapter 3: Data Acquisition
+
+## Acquiring Spotify Data
+
+The following code showcases how to access some data of a specific album from the Spotify Database.
+
+```{r, fig.width=10, fig.height=7}
+# load libraries
+library(spotifyr)
+library(tidyverse)
+
+# get authorization token, even though most of methods call get_spotify_access_token() by themselves
+access_token <- get_spotify_access_token()
+
+# raw album data from "amo" by Bring Me The Horizon, by using the spotify id of that album
+raw_data <- get_album("04mkS7FooK8fRbB626T9NR")
+
+# select important columns
+tracks_tbl <- raw_data$tracks$items %>% select(track_number, name, explicit, id, duration_ms)
+
+tracks_tbl
+
+# acquire the tempo (in BPM) from all tracks by accessing with their respective track id
+tracks_bpm <- vector()
+
+for(i in 1:dim(tracks_tbl)[1]) {
+  tracks_bpm <- c(tracks_bpm, get_track_audio_analysis(tracks_tbl[i, 4])$track$tempo)
+}
+
+# calculate the mean bpm of all tracks
+# result for that album: 132 BPM
+bpm_mean = mean(tracks_bpm) 
+
+# same for tempo confidence
+tracks_bpm_conf <- vector()
+
+for(i in 1:dim(tracks_tbl)[1]) {
+  tracks_bpm_conf <- c(tracks_bpm_conf, get_track_audio_analysis(tracks_tbl[i, 4])$track$tempo_confidence)
+}
+
+tempo_tbl <- data.frame(tracks_bpm, tracks_bpm_conf)
+
+# we could state the hypothesis that a high tempo could result in a low tempo confidence, 
+# so we test the correlation of tempo and tempo confidence
+
+# result is close to zero, so there is no strong correlation
+correlation = cor(tracks_bpm, tracks_bpm_conf)
+
+
+# we also try to confirm these results from a scatter plot
+ggplot(tempo_tbl, aes(x =tracks_bpm, y = tracks_bpm_conf)) +
+         
+         geom_point(size=4, shape=4) +
+  
+        geom_text(label=tracks_tbl$name) + 
+  
+  labs(
+    title = "Tempo and Tempo Confidence of albumtracks from \"amo\" by Bring Me The Horizon",
+    x = "Tempo in BPM (Beats Per Minute)",
+    y = "Tempo Confidence in percent"
+  )
+
+```
+The scatter plot also shows no strong correlation between the track tempo and the tempo confidence.
+
+
+## Acquiring Bike Data
+
+The following code acquires bike data from rosebikes.com.
+
+```{r}
+library(tidyverse) # Main Package - Loads dplyr, purrr, etc.
+library(rvest)     # HTML Hacking & Web Scraping
+library(xopen)     # Quickly opening URLs
+library(jsonlite)  # converts JSON files to R objects
+library(glue)      # concatenate strings
+library(stringi)   # character string/text processing
+
+# home urls
+og_url_home <- "https://www.rosebikes.com"
+url_home <- "https://www.rosebikes.com/bikes"
+
+# access raw html data for home url
+html_home <- read_html(url_home)
+
+# first we need every url for all models by accessing their hrefs and glueing them into urls
+model_urls <- html_home %>%
+
+   html_nodes(css = ".catalog-navigation__link") %>%
+   
+   # get the specific html attribute
+   html_attr('href') %>%
+   
+   # remove unwanted product families
+   discard(.p = ~stringr::str_detect(.x,"sale|kids")) %>%
+
+   # convert vector to tibble
+   enframe(name = "Name", value = "subdirectory") %>%
+
+   # final glueing of urls
+   mutate(
+    url = glue("https://www.rosebikes.com{subdirectory}")
+   )
+
+
+# function for acquiring bike data for every model
+get_bike_data <- function(url) {
+  
+  bike_html <- read_html(url)
+  
+  # 1. obtain list of model names
+  model_name_lst <- bike_html %>%
+    
+    html_nodes(css = ".catalog-category-bikes__title-text") %>%
+    
+    html_text() %>%
+    
+    str_remove(pattern="\\n") %>%
+    str_remove(pattern="\\n") 
+  
+  # 2. make list of model type (which is the same for this url)
+  model_type <- bike_html %>%
+    html_nodes(css = ".catalog-breadcrumb__list-item-link") %>%
+    html_attr("title")
+  
+  model_type <- model_type[length(model_type)]
+  
+  model_types_lst = rep(model_type, length(model_name_lst))
+  
+  # 3. obtain prices for every bike
+  prices_lst <- bike_html %>%
+    
+    html_nodes(css = ".catalog-category-bikes__price-title") %>%
+    
+    html_text() %>% 
+    
+    str_remove_all(pattern="\\n") 
+    
+    #str_remove(pattern="from €") %>% 
+    
+  # return merged tibble
+  data_tbl <- tibble(model_types_lst, model_name_lst, prices_lst) %>%
+  
+              rename(model_type = model_types_lst, model_name = model_name_lst, model_prices = prices_lst)
+  
+  return(data_tbl)
+}
+
+url_vector <- model_urls$url
+
+# use map to execute function for every url in the vector
+bike_data_lst <- map(url_vector, get_bike_data)
+
+bike_data_tbl <- bind_rows(bike_data_lst)
+
+bike_data_tbl
+```
