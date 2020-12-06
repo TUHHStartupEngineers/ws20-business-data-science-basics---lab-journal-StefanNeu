@@ -357,3 +357,275 @@ bike_data_tbl <- bind_rows(bike_data_lst)
 
 bike_data_tbl
 ```
+
+# Chapter 4: Data Wrangling
+
+## Patent Dominance
+
+```{r, eval=F}
+library(vroom)
+library(data.table)
+library(tidyverse)
+
+col_types <- list(
+  id = col_character(),
+  organization = col_character()
+)
+
+assignee_tbl <- vroom(
+  file       = "data-science/00_data/assignee.tsv",
+  delim      = "\t",
+  col_types  = col_types,
+  na         = c("", "NA", "NULL")
+)
+
+col_types <- list(
+  patent_id = col_character(),
+  assignee_id = col_character()
+)
+
+patent_assignee_tbl <- vroom(
+  file       = "data-science/00_data/patent_assignee.tsv",
+  delim      = "\t",
+  col_types  = col_types,
+  na         = c("", "NA", "NULL")
+)
+
+setDT(assignee_tbl)
+setDT(patent_assignee_tbl)
+
+setnames(assignee_tbl, "id", "assignee_id")
+
+first_combined_data_tbl <- merge(x=assignee_tbl, y= patent_assignee_tbl, by = "assignee_id")
+
+first_combined_data_tbl <- select(first_combined_data_tbl, assignee_id, name_first, name_last, organization, patent_id)
+
+first_summed_patents_tbl <- first_combined_data_tbl[is.na(name_first), .N, by=organization]
+
+first_summed_patents_tbl <- arrange(first_summed_patents_tbl, desc(first_summed_patents_tbl$N))
+
+first_summed_patents_tbl <- first_summed_patents_tbl[1:10]
+```
+
+```{r}
+
+first_summed_patents_tbl
+
+```
+
+
+## Recent Patent Activity
+
+```{r, eval=F}
+library(vroom)
+library(data.table)
+library(tidyverse)
+library(tictoc)
+
+col_types <- list(
+  id = col_character(),
+  date = col_date("%Y-%m-%d"),
+  num_claims = col_double()
+)
+
+patent_tbl <- vroom(
+  file       = "data-science/00_data/patent.tsv",
+  delim      = "\t",
+  col_types  = col_types,
+  na         = c("", "NA", "NULL")
+)
+
+patent_tbl <- select(patent_tbl, id, date)
+
+tic()
+
+patent_tbl <- patent_tbl %>% separate(col = date,
+                                      into = c("year", "month", "day"),
+                                      sep = "-",
+                                      remove = TRUE) %>%
+
+                            mutate(year = as.numeric(year)) %>%
+
+                            filter(year == 2019)
+
+
+toc()
+
+col_types <- list(
+  id = col_character(),
+  organization = col_character()
+)
+
+assignee_tbl <- vroom(
+  file       = "data-science/00_data/assignee.tsv",
+  delim      = "\t",
+  col_types  = col_types,
+  na         = c("", "NA", "NULL")
+)
+
+col_types <- list(
+  patent_id = col_character(),
+  assignee_id = col_character()
+)
+
+patent_assignee_tbl <- vroom(
+  file       = "data-science/00_data/patent_assignee.tsv",
+  delim      = "\t",
+  col_types  = col_types,
+  na         = c("", "NA", "NULL")
+)
+
+setDT(assignee_tbl)
+setDT(patent_assignee_tbl)
+
+setnames(assignee_tbl, "id", "assignee_id")
+
+combined_data_tbl <- merge(x=assignee_tbl, y= patent_assignee_tbl, by = "assignee_id")
+
+
+combined_data_tbl <- combined_data_tbl %>% filter(patent_id %in% patent_tbl$id)
+
+summed_patents_tbl <- combined_data_tbl[is.na(name_first), .N, by=organization]
+
+summed_patents_tbl <- arrange(summed_patents_tbl, desc(summed_patents_tbl$N))
+
+```
+
+```{r}
+summed_patents_tbl[1:10]
+```
+
+```{r}
+col_types<- list(
+  patent_id = col_character(),
+  mainclass_id = col_number(),
+  sequence = col_number()
+)
+
+uspc_tbl <- vroom(
+  file       = "data-science/00_data/uspc.tsv",
+  delim      = "\t",
+  col_types  = col_types,
+  na         = c("", "NA", "NULL")
+)
+
+uspc_combined_data <- merge(x = uspc_tbl, y = combined_data_tbl, by = "patent_id")
+
+uspc_combined_data %>%
+    group_by(mainclass_id) %>%
+    summarise(count = n()) %>%
+    ungroup() %>%
+    arrange(desc(count)) %>%
+    slice(1:5)
+```
+
+
+
+# Chapter 5: Data Visualization
+
+## COVID-19 Cummulative Cases
+
+```{r}
+library(tidyverse)
+covid_data_tbl <- read_csv("https://opendata.ecdc.europa.eu/covid19/casedistribution/csv")
+
+grouped_covid_data_tbl <- covid_data_tbl %>% 
+  
+              filter(year == 2020) %>%
+  
+              filter(countriesAndTerritories == "Germany" | countriesAndTerritories == "Spain" |
+                       countriesAndTerritories == "United_Kingdom" | countriesAndTerritories == "France" |
+                       countriesAndTerritories == "United_States_of_America") %>%
+  
+              select(dateRep, day, month, cases, countriesAndTerritories) %>%
+               
+              mutate(absDay = yday(dmy(dateRep))) %>%
+
+              arrange(absDay) %>%
+
+              group_by(countriesAndTerritories) %>%
+               
+              mutate(cum_cases = cumsum(cases))
+
+ylabel = c(0, 5, 10, 15)
+xlabel = c("February, April, June, August, October, December")
+
+grouped_covid_data_tbl %>% 
+  
+              ggplot(aes(x = lubridate::dmy(dateRep), y = cum_cases, color = countriesAndTerritories)) +
+  
+              geom_step(size=0.75) + 
+  
+              scale_y_continuous(limits = c(0,16e6), labels=paste0(ylabel, "M")) +
+              scale_x_date(date_breaks = "2 months", date_labels = "%b") +
+  
+  scale_color_viridis_d(option = "A") +
+  
+              geom_label(data = filter(grouped_covid_data_tbl, cum_cases ==last(cum_cases), 
+                                       countriesAndTerritories %in% "United_States_of_America"), 
+                         aes(label = cum_cases, fill = countriesAndTerritories), hjust = "inward",
+             size  = 3,
+             color = RColorBrewer::brewer.pal(n = 11, name = "RdBu")[11], show.legend = FALSE) +
+  
+              labs(
+                title = "COVID-19 confirmed cases worldwide",
+                subtitle = "As of 06.12.2020, the increase in cases is very high for the USA",
+                x = "Year 2020",
+                y = "Cummulative Cases",
+                color = "Countries"
+              )
+```
+
+## COVID-19 Worldwide Death Rates
+```{r}
+world_map <- map_data("world")
+
+covid_death_map <- covid_data_tbl%>%
+  
+    mutate(across(countriesAndTerritories, str_replace_all, "_", " ")) %>%
+    
+    mutate(countriesAndTerritories = case_when(
+      countriesAndTerritories == "United Kingdom" ~ "UK",
+      countriesAndTerritories == "United States of America" ~ "USA",
+      countriesAndTerritories == "Czechia" ~ "Czech Republic",
+      TRUE ~ countriesAndTerritories
+    )) %>%
+  
+    mutate(region = countriesAndTerritories) %>%
+    
+    select(region, deaths, popData2019) %>%
+    
+    group_by(region) %>%
+    
+    summarise(mortalityRate = sum(deaths)/popData2019) %>%
+    
+    distinct(region, .keep_all = TRUE) %>%
+    
+    mutate(mortalityRate_perc = scales::percent(mortalityRate, accuracy = 0.001))
+
+
+covid_death_map <- covid_death_map %>%
+  
+  left_join(world_map, by = "region") %>%
+  mutate(`Mortality Rate` = mortalityRate)
+
+
+covid_death_map %>% ggplot() + 
+  
+  geom_map(aes(x = long, y = lat, map_id = region, fill = `Mortality Rate`, 
+               label = mortalityRate_perc), map = world_map) +
+
+  scale_fill_continuous(labels = scales::percent_format(accuracy = 0.01), low = "#fc0303", high = "black") +
+  
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank(),
+        axis.ticks.x = element_blank(), axis.ticks.y = element_blank(),
+        axis.text.x = element_blank(), axis.text.y = element_blank()) +
+  
+  labs(
+    title = "Confirmed COVID-19 deaths relative to the size of the population",
+    subtitle = "More than 1.2 Million confirmed Covid-19 deaths worldwide",
+    x = "",
+    y = "",
+    caption = "Date: 06/12/2020"
+  ) 
+```

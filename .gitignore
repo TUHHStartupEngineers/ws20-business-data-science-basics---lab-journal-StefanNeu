@@ -36,3 +36,13 @@ vignettes/*.pdf
 *.knit.md
 
 # R Environment Variables
+data-science/00_data/patent.tsv
+data-science/00_data/uspc.tsv
+data-science/00_data/assignee.tsv
+data-science/00_data/patent_assignee.tsv
+docs/data-science/00_data/patent_assignee.tsv
+docs/data-science/00_data/uspc.tsv
+docs/data-science/00_data/patent.tsv
+docs/data-science/00_data/assignee.tsv
+docs/data-science/00_data/loan_data/Acquisition_2019Q1.txt
+docs/data-science/00_data/loan_data/Performance_2019Q1.txt
